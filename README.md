@@ -39,6 +39,8 @@ suggestions — press <kbd>Enter</kbd> to replace the shortcode with the emoji.
 - **Linux (X11)** — X11's `XRecord` can observe but not swallow keys, so
   selection uses the **closing-trigger** style: type `:smile:` (trigger, name,
   trigger) to insert the top suggestion. The popup updates live as you type.
+- **Any platform** — you can also **click** a suggestion in the popup to insert
+  it (rows highlight on hover).
 
 ## Install
 

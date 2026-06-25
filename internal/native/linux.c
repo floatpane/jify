@@ -68,6 +68,9 @@ static void apply_css(void) {
         "  color: #ededed;"
         "  font-size: 14px;"
         "}"
+        ".jrow:hover {"
+        "  background-color: rgba(255,255,255,0.07);"
+        "}"
         ".jrow.sel {"
         "  background-color: rgba(0,120,215,0.95);"
         "  color: #ffffff;"
@@ -133,6 +136,30 @@ static void hide_popup(void) {
 
 // update_results queries the Go core and rebuilds the popup rows. The first row
 // is highlighted because it is what the closing trigger will insert.
+static void send_backspaces(int n);
+static void send_unicode(const char *utf8);
+
+// row_clicked_cb inserts the clicked emoji, replacing the typed ":query" (the
+// opening trigger + query; no closing trigger has been typed) with the glyph.
+static gboolean row_clicked_cb(GtkWidget *widget, GdkEventButton *event,
+                               gpointer user_data) {
+    (void)user_data;
+    if (event->button != 1) return FALSE;
+    const char *g = (const char *)g_object_get_data(G_OBJECT(widget), "jify-glyph");
+    if (!g) return TRUE;
+
+    char glyph[64];
+    snprintf(glyph, sizeof(glyph), "%s", g);
+    int toDelete = gQueryLen + 1;
+    gActive = 0;
+    gQueryLen = 0;
+    gQuery[0] = '\0';
+    hide_popup();
+    send_backspaces(toDelete);
+    send_unicode(glyph);
+    return TRUE;
+}
+
 static void update_results(void) {
     clear_rows();
 
@@ -167,7 +194,14 @@ static void update_results(void) {
         if (row == 0) {
             gtk_style_context_add_class(ctx, "sel");
         }
-        gtk_box_pack_start(GTK_BOX(gBox), label, FALSE, FALSE, 0);
+
+        // Wrap in an input-only event box so the row is clickable.
+        GtkWidget *ebox = gtk_event_box_new();
+        gtk_event_box_set_visible_window(GTK_EVENT_BOX(ebox), FALSE);
+        gtk_container_add(GTK_CONTAINER(ebox), label);
+        g_object_set_data_full(G_OBJECT(ebox), "jify-glyph", g_strdup(glyph), g_free);
+        g_signal_connect(ebox, "button-press-event", G_CALLBACK(row_clicked_cb), NULL);
+        gtk_box_pack_start(GTK_BOX(gBox), ebox, FALSE, FALSE, 0);
         row++;
     }
     free(res);

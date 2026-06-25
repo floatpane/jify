@@ -44,6 +44,7 @@ var (
 	pInvalidateRect           = user32.NewProc("InvalidateRect")
 	pGetClientRect            = user32.NewProc("GetClientRect")
 	pLoadCursor               = user32.NewProc("LoadCursorW")
+	pSetCursor                = user32.NewProc("SetCursor")
 	pLoadImage                = user32.NewProc("LoadImageW")
 	pSendMessage              = user32.NewProc("SendMessageW")
 	pDrawText                 = user32.NewProc("DrawTextW")
@@ -77,6 +78,11 @@ const (
 	wmPaint      = 0x000F
 	wmEraseBkgnd = 0x0014
 	wmDestroy    = 0x0002
+	wmMouseMove  = 0x0200
+	wmLButtonUp  = 0x0202
+	wmSetCursor  = 0x0020
+	htClient     = 1
+	idcHand      = 32649
 
 	wsPopup        = 0x80000000
 	wsExToolWindow = 0x00000080
@@ -675,11 +681,46 @@ func wndProc(h, message, wParam, lParam uintptr) uintptr {
 	case wmPaint:
 		paint(h)
 		return 0
+	case wmMouseMove:
+		if row := rowAtY(mouseY(lParam)); row >= 0 && row != selected {
+			selected = row
+			invalidate()
+		}
+		return 0
+	case wmLButtonUp:
+		if row := rowAtY(mouseY(lParam)); row >= 0 {
+			selected = row
+			acceptSelection()
+		}
+		return 0
+	case wmSetCursor:
+		if lParam&0xFFFF == htClient {
+			hand, _, _ := pLoadCursor.Call(0, idcHand)
+			pSetCursor.Call(hand)
+			return 1
+		}
 	case wmDestroy:
 		return 0
 	}
 	r, _, _ := pDefWindowProc.Call(h, message, wParam, lParam)
 	return r
+}
+
+// mouseY extracts the (signed) client y coordinate from a mouse message lParam.
+func mouseY(lParam uintptr) int {
+	return int(int16(uint32(lParam) >> 16))
+}
+
+// rowAtY maps a client-area y coordinate to a result row index, or -1.
+func rowAtY(y int) int {
+	if y < popupVPad {
+		return -1
+	}
+	row := (y - popupVPad) / rowHeight
+	if row < 0 || row >= len(results) {
+		return -1
+	}
+	return row
 }
 
 func paint(h uintptr) {

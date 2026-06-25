@@ -68,6 +68,7 @@ static void ensurePanel(void) {
     gPanel.level = NSPopUpMenuWindowLevel;
     gPanel.floatingPanel = YES;
     gPanel.becomesKeyOnlyIfNeeded = YES;
+    [gPanel setAcceptsMouseMovedEvents:YES];
     gPanel.collectionBehavior =
         NSWindowCollectionBehaviorCanJoinAllSpaces |
         NSWindowCollectionBehaviorFullScreenAuxiliary |
@@ -204,6 +205,48 @@ static void applyHighlight(void) {
     }
 }
 
+static void acceptSelection(void);
+
+// JifyRowView is a clickable popup row: clicking inserts that emoji, hovering
+// highlights it, and the cursor becomes a pointing hand.
+@interface JifyRowView : NSView
+@property (nonatomic) NSInteger rowIndex;
+@end
+
+@implementation JifyRowView
+// Deliver clicks even though the panel never becomes key (non-activating).
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    (void)event;
+    return YES;
+}
+- (void)mouseUp:(NSEvent *)event {
+    (void)event;
+    gSelected = self.rowIndex;
+    acceptSelection();
+}
+- (void)mouseEntered:(NSEvent *)event {
+    (void)event;
+    gSelected = self.rowIndex;
+    applyHighlight();
+}
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    for (NSTrackingArea *ta in [self.trackingAreas copy]) {
+        [self removeTrackingArea:ta];
+    }
+    NSTrackingArea *ta = [[NSTrackingArea alloc]
+        initWithRect:self.bounds
+             options:(NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways |
+                      NSTrackingInVisibleRect)
+               owner:self
+            userInfo:nil];
+    [self addTrackingArea:ta];
+}
+- (void)resetCursorRects {
+    [self addCursorRect:self.bounds cursor:[NSCursor pointingHandCursor]];
+}
+@end
+
 // rebuildRows recreates the row views to match gResults.
 static void rebuildRows(void) {
     for (NSView *v in [gContainer.subviews copy]) {
@@ -225,7 +268,8 @@ static void rebuildRows(void) {
         // Rows are laid out top-to-bottom (AppKit origin is bottom-left).
         CGFloat y = height - kPad - (i + 1) * kRowHeight;
         NSRect rowFrame = NSMakeRect(kPad / 2, y, kPanelWidth - kPad, kRowHeight);
-        NSView *row = [[NSView alloc] initWithFrame:rowFrame];
+        JifyRowView *row = [[JifyRowView alloc] initWithFrame:rowFrame];
+        row.rowIndex = i;
         row.wantsLayer = YES;
 
         NSTextField *emojiLabel =
