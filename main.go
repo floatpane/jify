@@ -99,7 +99,7 @@ func daemonize() error {
 	if logFile := openDaemonLog(); logFile != nil {
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
-		defer logFile.Close()
+		defer func() { _ = logFile.Close() }()
 	}
 
 	if err := cmd.Start(); err != nil {
