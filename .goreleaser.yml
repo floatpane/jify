@@ -81,7 +81,7 @@ homebrew_casks:
     repository:
       owner: floatpane
       name: homebrew-jify
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.BOT_GITHUB_TOKEN }}"
     commit_author:
       name: Floatpane Bot
       email: us@floatpane.com
