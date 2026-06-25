@@ -26,6 +26,15 @@ static NSMutableString *gQuery = nil;
 static NSInteger gSelected = 0;
 static BOOL gActive = NO;
 static UniChar gTrigger = ':';
+static NSData *gIconData = nil;
+
+// jifySetAppIcon stores the PNG bytes for the application icon (applied in
+// jifyRun once NSApplication exists).
+void jifySetAppIcon(const void *data, int len) {
+    if (data && len > 0) {
+        gIconData = [NSData dataWithBytes:data length:(NSUInteger)len];
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -415,6 +424,11 @@ void jifyRun(void) {
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+        if (gIconData) {
+            NSImage *icon = [[NSImage alloc] initWithData:gIconData];
+            if (icon) [app setApplicationIconImage:icon];
+        }
 
         gQuery = [NSMutableString string];
         gResults = [NSMutableArray array];

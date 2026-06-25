@@ -5,4 +5,8 @@
 // popup and runs the GTK main loop. It blocks until the process exits.
 void jifyRun(void);
 
+// jifySetIcon stores PNG bytes used as the window/application icon. Call before
+// jifyRun.
+void jifySetIcon(const void *data, int len);
+
 #endif // JIFY_LINUX_H

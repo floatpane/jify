@@ -10,9 +10,15 @@ package native
 import "C"
 
 import (
+	_ "embed"
+	"unsafe"
+
 	"github.com/floatpane/jify/pkg/config"
 	"github.com/floatpane/jify/pkg/emoji"
 )
+
+//go:embed jify_icon.png
+var iconPNG []byte
 
 // Run starts the Linux (GTK + X11) backend, blocking on the GTK main loop.
 //
@@ -23,6 +29,9 @@ import (
 func Run(cfg *config.Config, db *emoji.Database) error {
 	activeConfig = cfg
 	activeDB = db
+	if len(iconPNG) > 0 {
+		C.jifySetIcon(unsafe.Pointer(&iconPNG[0]), C.int(len(iconPNG)))
+	}
 	C.jifyRun()
 	return nil
 }

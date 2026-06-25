@@ -1,0 +1,15 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": { "Major": 1, "Minor": 0, "Patch": 0, "Build": 0 },
+    "ProductVersion": { "Major": 1, "Minor": 0, "Patch": 0, "Build": 0 }
+  },
+  "StringFileInfo": {
+    "ProductName": "jify",
+    "FileDescription": "Native shortcode emoji picker",
+    "CompanyName": "floatpane",
+    "LegalCopyright": "(c) 2026 floatpane",
+    "OriginalFilename": "jify.exe",
+    "InternalName": "jify"
+  },
+  "IconPath": "assets/jify.ico"
+}

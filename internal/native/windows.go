@@ -44,6 +44,8 @@ var (
 	pInvalidateRect           = user32.NewProc("InvalidateRect")
 	pGetClientRect            = user32.NewProc("GetClientRect")
 	pLoadCursor               = user32.NewProc("LoadCursorW")
+	pLoadImage                = user32.NewProc("LoadImageW")
+	pSendMessage              = user32.NewProc("SendMessageW")
 	pDrawText                 = user32.NewProc("DrawTextW")
 	pGetCursorPos             = user32.NewProc("GetCursorPos")
 	pMonitorFromPoint         = user32.NewProc("MonitorFromPoint")
@@ -116,6 +118,15 @@ const (
 	processQueryLimited = 0x1000
 
 	giCaret = 0x0002
+
+	// Window icon (loaded from the embedded .syso resource, id 1).
+	imageIcon     = 1
+	lrDefaultSize = 0x0040
+	lrShared      = 0x8000
+	wmSetIcon     = 0x0080
+	iconSmall     = 0
+	iconBig       = 1
+	appIconResID  = 1
 
 	// Magic marker so our own injected keystrokes are ignored by the hook.
 	jifyExtraInfo = 0x4A494659 // "JIFY"
@@ -252,13 +263,19 @@ func Run(cfg *config.Config, db *emoji.Database) error {
 	className, _ := syscall.UTF16PtrFromString("JifyPopupClass")
 	cursor, _, _ := pLoadCursor.Call(0, 32512 /* IDC_ARROW */)
 
+	// The jify icon is embedded as a PE resource (resource_windows_*.syso),
+	// which also gives the .exe its icon in Explorer. Load it for the window.
+	icon, _, _ := pLoadImage.Call(instance, appIconResID, imageIcon, 0, 0, lrDefaultSize|lrShared)
+
 	wc := wndClassEx{
 		Style:      0,
 		WndProc:    syscall.NewCallback(wndProc),
 		Instance:   instance,
+		Icon:       icon,
 		Cursor:     cursor,
 		Background: 0, // we paint everything ourselves (acrylic shows through)
 		ClassName:  className,
+		IconSm:     icon,
 	}
 	wc.Size = uint32(unsafe.Sizeof(wc))
 	if ret, _, err := pRegisterClassEx.Call(uintptr(unsafe.Pointer(&wc))); ret == 0 {
@@ -276,6 +293,11 @@ func Run(cfg *config.Config, db *emoji.Database) error {
 	)
 	if hwnd == 0 {
 		return syscall.GetLastError()
+	}
+
+	if icon != 0 {
+		pSendMessage.Call(hwnd, wmSetIcon, iconSmall, icon)
+		pSendMessage.Call(hwnd, wmSetIcon, iconBig, icon)
 	}
 
 	enableAcrylic(hwnd)

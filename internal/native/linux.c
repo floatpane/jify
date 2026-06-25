@@ -31,6 +31,20 @@ static int gShift = 0;
 static char gQuery[256];
 static int gQueryLen = 0;
 static KeySym gTrigger = ':';
+static GdkPixbuf *gIcon = NULL;
+
+// jifySetIcon decodes the PNG bytes into a pixbuf used as the window icon. The
+// pixbuf is applied once GTK is initialised (see jifyRun / build_ui).
+void jifySetIcon(const void *data, int len) {
+    if (!data || len <= 0) return;
+    GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
+    if (gdk_pixbuf_loader_write(loader, (const guchar *)data, (gsize)len, NULL) &&
+        gdk_pixbuf_loader_close(loader, NULL)) {
+        GdkPixbuf *pb = gdk_pixbuf_loader_get_pixbuf(loader);
+        if (pb) gIcon = g_object_ref(pb);
+    }
+    g_object_unref(loader);
+}
 
 static const int kPopupWidth = 340;
 
@@ -88,6 +102,8 @@ static void build_ui(void) {
     gBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_widget_set_name(gBox, "jbox");
     gtk_container_add(GTK_CONTAINER(gWindow), gBox);
+
+    if (gIcon) gtk_window_set_icon(GTK_WINDOW(gWindow), gIcon);
 }
 
 // ---------------------------------------------------------------------------
@@ -397,6 +413,8 @@ void jifyRun(void) {
     gTrigger = (KeySym)jifyTriggerRune();
 
     gtk_init(NULL, NULL);
+
+    if (gIcon) gtk_window_set_default_icon(gIcon);
 
     gCtrlDpy = XOpenDisplay(NULL);
     gDataDpy = XOpenDisplay(NULL);
