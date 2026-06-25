@@ -12,8 +12,7 @@ build/
 # Config (user config lives in ~/.config; example is tracked)
 config.json
 
-# crush tool data (from prior tooling)
-.crush/
+
 
 # IDE
 .vscode/
