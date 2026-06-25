@@ -1,0 +1,3 @@
+# Exclude the marketing website from GitHub Linguist language statistics
+# so the repo is reported as a Go project, not HTML/CSS.
+website/** linguist-vendored

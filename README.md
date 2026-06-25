@@ -1,4 +1,12 @@
-# jify
+<p align="center">
+  <img src="assets/logo.png" alt="jify logo" width="120" height="120" />
+</p>
+
+<h1 align="center">jify</h1>
+
+<p align="center">Emoji, everywhere you type.</p>
+
+---
 
 Native shortcode emoji picker. Type a trigger character (`:` by default)
 followed by an emoji name in **any** application and jify pops up native
