@@ -77,7 +77,8 @@ CGO_ENABLED=1 go build -o jify .
 ## Usage
 
 ```sh
-./jify            # run jify in the background (type ":name" anywhere)
+./jify            # start jify in the background (type ":name" anywhere)
+./jify -f         # run in the foreground (don't detach; for debugging)
 ./jify enable     # start jify automatically at login
 ./jify disable    # stop starting jify at login
 ./jify status     # show whether autostart is enabled
@@ -88,9 +89,15 @@ CGO_ENABLED=1 go build -o jify .
 ### Running in the background & at login
 
 jify is designed to run as a background agent (no dock icon on macOS, no window
-until the popup appears). It registers itself to launch at login automatically
-on first run — controlled by the `autostart` config field, which is reconciled
-with the OS every time jify starts. Use `jify disable` to turn it off.
+until the popup appears). Running `jify` from a terminal detaches it and returns
+your prompt immediately; its output goes to a log file next to the config
+(`<config-dir>/jify/jify.log`). Use `jify -f` to stay in the foreground. When
+launched by launchd/systemd/snap it runs in the foreground so the supervisor can
+track it.
+
+It also registers itself to launch at login automatically on first run —
+controlled by the `autostart` config field, which is reconciled with the OS every
+time jify starts. Use `jify disable` to turn it off.
 
 Login mechanism per OS:
 
