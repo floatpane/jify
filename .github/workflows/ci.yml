@@ -93,6 +93,10 @@ jobs:
           install-only: true
       - name: goreleaser check
         run: goreleaser check -f .goreleaser.yml
+      - name: Validate Windows resource generation
+        run: |
+          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -64 -o /tmp/amd64.syso versioninfo.json
+          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -64 -arm -o /tmp/arm64.syso versioninfo.json
 
   snap-validate:
     runs-on: ubuntu-latest

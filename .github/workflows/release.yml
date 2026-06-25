@@ -38,6 +38,14 @@ jobs:
         id: sdk
         run: echo "path=$(xcrun --show-sdk-path)" >> "$GITHUB_OUTPUT"
 
+      # Generate the Windows icon/version resources so GoReleaser's windows
+      # builds embed the jify icon. These are build artifacts, not committed.
+      - name: Generate Windows resources
+        if: steps.tag.outputs.new_tag
+        run: |
+          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -64 -o resource_windows_amd64.syso versioninfo.json
+          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -64 -arm -o resource_windows_arm64.syso versioninfo.json
+
       - name: Run GoReleaser
         if: steps.tag.outputs.new_tag
         uses: goreleaser/goreleaser-action@v6

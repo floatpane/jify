@@ -5,6 +5,10 @@ jify
 *.so
 *.dylib
 
+# Generated Windows resource objects (icon + version info).
+# Regenerate with `make windows-syso`; CI/release generates them on the fly.
+*.syso
+
 # Build output
 dist/
 build/
