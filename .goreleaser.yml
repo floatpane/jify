@@ -1,0 +1,97 @@
+# GoReleaser configuration for jify.
+# https://goreleaser.com
+#
+# jify has cgo backends on macOS (Cocoa) and Linux (GTK3 + X11); Windows is pure
+# Go. macOS is built natively with clang and Windows is built CGO-free, so this
+# config (run on macos-latest, see .github/workflows/release.yml) handles those
+# two. Linux is distributed via Snap and native tarballs, built on Ubuntu runners
+# in the release workflow, because GTK3's dependency tree is impractical to
+# cross-compile with zig from macOS.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: jify
+    main: .
+    binary: jify
+    goos:
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      # No console window on Windows (it runs as a background agent).
+      - '{{- if eq .Os "windows" }}-H=windowsgui{{- end }}'
+    env:
+      # cgo for the macOS Cocoa backend; Windows is pure Go.
+      - CGO_ENABLED={{ if eq .Os "darwin" }}1{{ else }}0{{ end }}
+      - >-
+        {{- if eq .Os "darwin" }}SDKROOT={{ .Env.SDK_PATH }}{{- end }}
+      - >-
+        {{- if eq .Os "darwin" }}MACOSX_DEPLOYMENT_TARGET=11.0{{- end }}
+      - >-
+        {{- if eq .Os "darwin" }}CGO_CFLAGS=-isysroot {{ .Env.SDK_PATH }} -mmacosx-version-min=11.0{{- end }}
+      - >-
+        {{- if eq .Os "darwin" }}CGO_LDFLAGS=-isysroot {{ .Env.SDK_PATH }}{{- end }}
+      - >-
+        {{- if eq .Os "darwin" }}
+          {{- if eq .Arch "amd64" }}CC=clang -arch x86_64 -isysroot {{ .Env.SDK_PATH }}{{- end }}
+          {{- if eq .Arch "arm64" }}CC=clang -arch arm64 -isysroot {{ .Env.SDK_PATH }}{{- end }}
+        {{- end }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - config.example.json
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github-native
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ---
+    Also available on **[Homebrew](https://github.com/floatpane/homebrew-jify)** (macOS) and **[Snapcraft](https://snapcraft.io/jify)** (Linux).
+
+# Homebrew cask (macOS). Published to floatpane/homebrew-jify.
+#   brew install floatpane/jify/jify
+homebrew_casks:
+  - name: jify
+    binaries: [jify]
+    repository:
+      owner: floatpane
+      name: homebrew-jify
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: Floatpane Bot
+      email: us@floatpane.com
+    description: "Native shortcode emoji picker that works in any app."
+    homepage: "https://github.com/floatpane/jify"
+    # Strip the Apple quarantine xattr so the unsigned binary runs without a
+    # Gatekeeper prompt.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/jify"]
+          end

@@ -1,0 +1,49 @@
+name: jify
+base: core22
+adopt-info: jify
+summary: Native shortcode emoji picker that works in any app.
+description: |
+  jify pops up native emoji suggestions whenever you type a shortcode
+  (e.g. ":smile:") in any application, and inserts the emoji you pick.
+
+  It uses a GTK 3 popup and X11 (XRecord/XTest) for global key capture and text
+  insertion. Because it observes and injects keystrokes system-wide, the snap
+  uses classic confinement.
+
+# Global keyboard capture and text injection require unconfined (classic)
+# access; strict confinement cannot grant system-wide input interception.
+confinement: classic
+grade: stable
+
+architectures:
+  - build-on: [amd64]
+    build-for: [amd64]
+  - build-on: [arm64]
+    build-for: [arm64]
+
+apps:
+  jify:
+    command: bin/jify
+
+parts:
+  jify:
+    plugin: nil
+    source: .
+    build-snaps:
+      - go/1.26/stable
+    build-packages:
+      - gcc
+      - libc6-dev
+      - pkg-config
+      - libgtk-3-dev
+      - libx11-dev
+      - libxtst-dev
+    build-environment:
+      - CGO_ENABLED: "1"
+      - GOBIN: ""
+    override-pull: |
+      craftctl default
+      version="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.1)"
+      craftctl set version="$version"
+    override-build: |
+      go build -trimpath -ldflags "-s -w" -o "${CRAFT_PART_INSTALL}/bin/jify" .

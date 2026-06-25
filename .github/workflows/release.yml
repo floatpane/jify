@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  # macOS runner: builds the darwin (clang/cgo) and windows (pure Go) artifacts,
+  # creates the GitHub Release, and publishes the Homebrew cask.
+  goreleaser:
+    runs-on: macos-latest
+    outputs:
+      new_tag: ${{ steps.tag.outputs.new_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+
+      - name: Bump version and push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Get macOS SDK path
+        id: sdk
+        run: echo "path=$(xcrun --show-sdk-path)" >> "$GITHUB_OUTPUT"
+
+      - name: Run GoReleaser
+        if: steps.tag.outputs.new_tag
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --clean
+        env:
+          SDK_PATH: ${{ steps.sdk.outputs.path }}
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+  # Ubuntu runners: native cgo Linux builds (GTK3 + X11), attached to the same
+  # release as tarballs.
+  linux-tarballs:
+    needs: goreleaser
+    if: needs.goreleaser.outputs.new_tag
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.goreleaser.outputs.new_tag }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev libxtst-dev pkg-config
+
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          TAG="${{ needs.goreleaser.outputs.new_tag }}"
+          VER="${TAG#v}"
+          go build -trimpath -ldflags "-s -w -X main.version=${VER} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o jify .
+          NAME="jify_${VER}_linux_${{ matrix.arch }}"
+          tar -czf "${NAME}.tar.gz" jify LICENSE README.md config.example.json
+          echo "asset=${NAME}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.goreleaser.outputs.new_tag }}" "${{ env.asset }}" --clobber
+
+  # Build and publish the Linux snap (classic confinement) to the Snap Store.
+  snapcraft:
+    needs: goreleaser
+    if: needs.goreleaser.outputs.new_tag
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.goreleaser.outputs.new_tag }}
+          fetch-depth: 0
+
+      - name: Install Snapcraft and LXD
+        run: |
+          sudo snap install snapcraft --classic
+          sudo snap install lxd
+          sudo lxd init --auto
+          sudo iptables -P FORWARD ACCEPT
+          sudo usermod -aG lxd "$USER"
+
+      - name: Build snap
+        run: sg lxd -c 'snapcraft pack --use-lxd --build-for=${{ matrix.arch }}'
+
+      - name: Publish snap
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: snapcraft upload --release=stable *.snap

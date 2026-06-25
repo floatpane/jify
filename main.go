@@ -14,6 +14,13 @@ import (
 	"github.com/floatpane/jify/pkg/emoji"
 )
 
+// Build information, injected at release time via -ldflags.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func init() {
 	// The macOS event tap and AppKit run loop must own the main OS thread.
 	runtime.LockOSThread()
@@ -59,6 +66,8 @@ func handleCommand(cmd string) bool {
 		setAutostart(false)
 	case "status":
 		printStatus()
+	case "version", "--version", "-v":
+		fmt.Printf("jify %s (commit %s, built %s)\n", version, commit, date)
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -108,6 +117,7 @@ Usage:
   jify disable      Stop starting jify at login.
   jify status       Show whether autostart is enabled.
   jify config       Print the path to the config file.
+  jify version      Print version information.
   jify help         Show this help.
 
 Config file fields (JSON):

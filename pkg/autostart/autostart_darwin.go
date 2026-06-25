@@ -52,10 +52,19 @@ func Enable() error {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}
+	if skipLaunchctl() {
+		return nil
+	}
 	// Reload so the change takes effect immediately; ignore unload errors (it
 	// may not be loaded yet).
 	_ = exec.Command("launchctl", "unload", path).Run()
 	return exec.Command("launchctl", "load", "-w", path).Run()
+}
+
+// skipLaunchctl lets tests register the plist without actually loading it into
+// launchd (which would try to spawn the agent).
+func skipLaunchctl() bool {
+	return os.Getenv("JIFY_SKIP_LAUNCHCTL") == "1"
 }
 
 // Disable unloads and removes the LaunchAgent plist.
@@ -64,7 +73,9 @@ func Disable() error {
 	if err != nil {
 		return err
 	}
-	_ = exec.Command("launchctl", "unload", "-w", path).Run()
+	if !skipLaunchctl() {
+		_ = exec.Command("launchctl", "unload", "-w", path).Run()
+	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}

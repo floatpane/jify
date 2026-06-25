@@ -1,0 +1,67 @@
+version: "2"
+
+run:
+  timeout: 10m
+  build-tags:
+    - integration
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - copyloopvar
+    - durationcheck
+    - errorlint
+    - gocritic
+    - misspell
+    - nilerr
+    - predeclared
+    - revive
+    - unconvert
+    - whitespace
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+    revive:
+      rules:
+        - name: blank-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: var-declaration
+        - name: package-comments
+          disabled: true
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+      # The native cgo backends use unsafe pointer idioms required by the OS
+      # APIs; vet's unsafeptr check flags the standard hook-struct conversions.
+      - path: internal/native/
+        linters:
+          - govet
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -32,7 +32,25 @@ suggestions — press <kbd>Enter</kbd> to replace the shortcode with the emoji.
   selection uses the **closing-trigger** style: type `:smile:` (trigger, name,
   trigger) to insert the top suggestion. The popup updates live as you type.
 
-## Install / build
+## Install
+
+**macOS (Homebrew):**
+
+```sh
+brew install floatpane/jify/jify
+```
+
+**Linux (Snap):**
+
+```sh
+sudo snap install jify --classic
+```
+
+**Windows / manual:** download the archive for your OS from the
+[releases page](https://github.com/floatpane/jify/releases) and put `jify` on
+your `PATH`.
+
+## Build from source
 
 Requires Go 1.24+.
 
@@ -123,3 +141,38 @@ pure Go and calls the core directly.
   the `RECORD` and `XTEST` extensions, which are standard.
 - **Windows** needs no special permission; if jify is used in an elevated
   (admin) window, run jify elevated too so the hook can see those keystrokes.
+
+## Development
+
+```sh
+make test                 # unit tests
+go test -tags integration ./...   # integration tests (CLI + Linux daemon smoke)
+make build                # local binary
+goreleaser build --snapshot --clean   # build the full release matrix locally
+```
+
+CI (`.github/workflows/ci.yml`) runs tests/build on Linux, macOS and Windows,
+plus `gofmt`, `go vet`, `golangci-lint`, and config validation.
+`integration.yml` runs the integration tests (Linux uses `xvfb`).
+
+### Releasing
+
+The **Release** workflow is manual (`workflow_dispatch`). It tags a new version,
+then:
+
+- **macOS runner** runs GoReleaser → builds darwin (clang/cgo) + windows
+  (pure Go) artifacts, creates the GitHub Release, and updates the
+  [Homebrew cask](https://github.com/floatpane/homebrew-jify).
+- **Ubuntu runners** build native Linux tarballs (amd64/arm64) and the
+  classic-confinement **snap**, publishing it to the Snap Store.
+
+Required repository secrets:
+
+| Secret                        | Used for                                  |
+| ----------------------------- | ----------------------------------------- |
+| `HOMEBREW_TAP_GITHUB_TOKEN`   | Pushing the cask to `floatpane/homebrew-jify` |
+| `SNAPCRAFT_STORE_CREDENTIALS` | Publishing the snap (`snapcraft export-login`) |
+
+> The snap name `jify` must be registered once with `snapcraft register jify`,
+> and because it uses **classic** confinement the first upload needs manual
+> Snap Store review approval.
