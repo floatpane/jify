@@ -56,6 +56,7 @@ jobs:
           SDK_PATH: ${{ steps.sdk.outputs.path }}
           GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
 
   # Ubuntu runners: native cgo Linux builds (GTK3 + X11), attached to the same
   # release as tarballs.
