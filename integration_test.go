@@ -20,6 +20,11 @@ import (
 var binPath string
 
 func TestMain(m *testing.M) {
+	// Wrapped in a helper so deferred cleanup runs before os.Exit.
+	os.Exit(runTests(m))
+}
+
+func runTests(m *testing.M) int {
 	dir, err := os.MkdirTemp("", "jify-it")
 	if err != nil {
 		panic(err)
@@ -36,7 +41,7 @@ func TestMain(m *testing.M) {
 		panic("build failed: " + err.Error())
 	}
 
-	os.Exit(m.Run())
+	return m.Run()
 }
 
 // run executes the binary with an isolated HOME so autostart writes land in a
