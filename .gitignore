@@ -1,0 +1,26 @@
+# Binaries
+jify
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build output
+dist/
+build/
+
+# Config (user config lives in ~/.config; example is tracked)
+config.json
+
+# crush tool data (from prior tooling)
+.crush/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store

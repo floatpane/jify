@@ -1,0 +1,10 @@
+{
+  "trigger": ":",
+  "maxSuggestions": 10,
+  "blacklistedApps": ["com.apple.Terminal", "Password"],
+  "theme": "native",
+  "hotkey": {
+    "modifier": "ctrl",
+    "key": "space"
+  }
+}
