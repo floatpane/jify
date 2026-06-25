@@ -102,11 +102,19 @@ static void ensurePanel(void) {
     gPanel.contentView = gBackground;
 }
 
-// caretRectCocoa returns the screen rectangle of the text insertion point in
-// Cocoa coordinates (origin bottom-left). Returns NO if the focused element does
-// not expose caret bounds (e.g. some Electron apps), in which case the caller
-// falls back to the mouse location.
-static BOOL caretRectCocoa(NSRect *out) {
+// axRectToCocoa converts an Accessibility rect (top-left origin on the primary
+// screen) to a Cocoa rect (bottom-left origin).
+static NSRect axRectToCocoa(CGRect r) {
+    CGFloat primaryTop = NSMaxY([[NSScreen screens] firstObject].frame);
+    return NSMakeRect(r.origin.x, primaryTop - (r.origin.y + r.size.height),
+                      r.size.width, r.size.height);
+}
+
+// anchorRectCocoa returns a screen rectangle (Cocoa coordinates) to anchor the
+// popup to, preferring the precise text caret and falling back to the focused
+// element's frame (i.e. the text field). Returns NO only when the focused app
+// exposes neither, in which case the caller uses the mouse location.
+static BOOL anchorRectCocoa(NSRect *out) {
     AXUIElementRef sys = AXUIElementCreateSystemWide();
     if (!sys) return NO;
 
@@ -116,52 +124,69 @@ static BOOL caretRectCocoa(NSRect *out) {
     CFRelease(sys);
     if (e != kAXErrorSuccess || !focused) return NO;
 
+    BOOL found = NO;
+
+    // 1) Precise caret bounds (best, when the app supports AX text ranges).
     CFTypeRef rangeVal = NULL;
-    e = AXUIElementCopyAttributeValue(
-        focused, kAXSelectedTextRangeAttribute, &rangeVal);
-    if (e != kAXErrorSuccess || !rangeVal) {
-        CFRelease(focused);
-        return NO;
+    if (AXUIElementCopyAttributeValue(focused, kAXSelectedTextRangeAttribute,
+                                      &rangeVal) == kAXErrorSuccess && rangeVal) {
+        CFTypeRef boundsVal = NULL;
+        if (AXUIElementCopyParameterizedAttributeValue(
+                focused, kAXBoundsForRangeParameterizedAttribute, rangeVal,
+                &boundsVal) == kAXErrorSuccess && boundsVal) {
+            CGRect r = CGRectZero;
+            if (AXValueGetValue((AXValueRef)boundsVal, kAXValueTypeCGRect, &r) &&
+                !(r.size.height == 0 && r.origin.x == 0 && r.origin.y == 0)) {
+                *out = axRectToCocoa(r);
+                found = YES;
+            }
+            CFRelease(boundsVal);
+        }
+        CFRelease(rangeVal);
     }
 
-    CFTypeRef boundsVal = NULL;
-    e = AXUIElementCopyParameterizedAttributeValue(
-        focused, kAXBoundsForRangeParameterizedAttribute, rangeVal, &boundsVal);
-    CFRelease(rangeVal);
+    // 2) Fall back to the focused element's frame, but only when it looks like a
+    //    real single-line-ish text field. Terminals and GPUI/Chromium apps
+    //    (Ghostty, Zed, Zen, ...) often report a bogus (0,0) origin or a
+    //    window-sized element; accepting those would pin the popup to the corner,
+    //    so we reject them and let the caller fall back to the mouse.
+    if (!found) {
+        CFTypeRef posVal = NULL, sizeVal = NULL;
+        AXUIElementCopyAttributeValue(focused, kAXPositionAttribute, &posVal);
+        AXUIElementCopyAttributeValue(focused, kAXSizeAttribute, &sizeVal);
+        if (posVal && sizeVal) {
+            CGPoint p = CGPointZero;
+            CGSize s = CGSizeZero;
+            if (AXValueGetValue((AXValueRef)posVal, kAXValueTypeCGPoint, &p) &&
+                AXValueGetValue((AXValueRef)sizeVal, kAXValueTypeCGSize, &s) &&
+                s.width > 1 && s.height > 1 && s.height <= 200 &&
+                !(p.x == 0 && p.y == 0)) {
+                *out = axRectToCocoa(CGRectMake(p.x, p.y, s.width, s.height));
+                found = YES;
+            }
+        }
+        if (posVal) CFRelease(posVal);
+        if (sizeVal) CFRelease(sizeVal);
+    }
+
     CFRelease(focused);
-    if (e != kAXErrorSuccess || !boundsVal) return NO;
-
-    CGRect r = CGRectZero;
-    BOOL ok = AXValueGetValue((AXValueRef)boundsVal, kAXValueTypeCGRect, &r);
-    CFRelease(boundsVal);
-    if (!ok) return NO;
-
-    // A zero-width caret is normal; a fully-zero rect means "no info".
-    if (r.origin.x == 0 && r.origin.y == 0 && r.size.height == 0) return NO;
-
-    // AX rects use a top-left origin on the primary screen; flip to Cocoa's
-    // bottom-left origin.
-    CGFloat primaryTop = NSMaxY([[NSScreen screens] firstObject].frame);
-    out->origin.x = r.origin.x;
-    out->origin.y = primaryTop - (r.origin.y + r.size.height); // caret bottom
-    out->size.width = r.size.width;
-    out->size.height = r.size.height;
-    return YES;
+    return found;
 }
 
-// repositionPanel anchors the popup to the text caret: just below the current
-// line, or directly above it when there isn't enough room below. Falls back to
-// the mouse cursor when caret bounds aren't available.
+// repositionPanel anchors the popup to the focused text field: just below it, or
+// directly above when there isn't enough room below. Prefers the precise caret,
+// then the field's frame, and only falls back to the mouse when the app exposes
+// neither via Accessibility.
 static void repositionPanel(CGFloat height) {
-    const CGFloat gap = 6.0;
+    const CGFloat gap = 9.0;
 
-    NSRect caret;
+    NSRect anchorRect;
     NSPoint anchor;
-    if (caretRectCocoa(&caret)) {
-        anchor = NSMakePoint(NSMidX(caret), caret.origin.y);
+    if (anchorRectCocoa(&anchorRect)) {
+        anchor = NSMakePoint(NSMidX(anchorRect), anchorRect.origin.y);
     } else {
         NSPoint m = [NSEvent mouseLocation];
-        caret = NSMakeRect(m.x, m.y - 8, 0, 16); // pretend a one-line caret
+        anchorRect = NSMakeRect(m.x, m.y - 8, 0, 16); // pretend a one-line caret
         anchor = m;
     }
 
@@ -171,15 +196,15 @@ static void repositionPanel(CGFloat height) {
     }
     NSRect vis = screen.visibleFrame;
 
-    CGFloat caretBottom = caret.origin.y;
-    CGFloat caretTop = caret.origin.y + caret.size.height;
+    CGFloat anchorBottom = anchorRect.origin.y;
+    CGFloat anchorTop = anchorRect.origin.y + anchorRect.size.height;
 
-    CGFloat x = caret.origin.x;
-    CGFloat y = caretBottom - gap - height; // below the line
+    CGFloat x = anchorRect.origin.x;
+    CGFloat y = anchorBottom - gap - height; // below the field/line
 
     if (y < NSMinY(vis)) {
-        // Not enough room below: sit directly above the line instead.
-        y = caretTop + gap;
+        // Not enough room below: sit directly above the field/line instead.
+        y = anchorTop + gap;
         if (y + height > NSMaxY(vis)) y = NSMaxY(vis) - height;
     }
 

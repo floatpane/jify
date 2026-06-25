@@ -32,6 +32,10 @@ windows-syso:
 icons:
 	./scripts/gen-icons.sh
 
+# Regenerate pkg/emoji/emoji.json from the gemoji database.
+emoji:
+	./scripts/gen-emoji.sh
+
 clean:
 	rm -f $(BINARY) $(BINARY).exe
 	rm -rf dist

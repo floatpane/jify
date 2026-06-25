@@ -2,9 +2,27 @@
 package emoji
 
 import (
+	_ "embed"
+	"encoding/json"
 	"sort"
 	"strings"
 )
+
+// emojiJSON is the full shortcode emoji dataset, generated from GitHub's gemoji
+// database by `go run ./tools/emojigen` (see scripts/gen-emoji.sh).
+//
+//go:embed emoji.json
+var emojiJSON []byte
+
+// emojiData parses the embedded dataset. The data is generated and validated, so
+// a parse failure is a build-time programmer error.
+func emojiData() []Emoji {
+	var out []Emoji
+	if err := json.Unmarshal(emojiJSON, &out); err != nil {
+		panic("emoji: invalid embedded dataset: " + err.Error())
+	}
+	return out
+}
 
 // Emoji represents a single emoji together with its searchable metadata.
 type Emoji struct {
