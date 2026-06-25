@@ -26,6 +26,9 @@ type Config struct {
 	BlacklistedApps []string `json:"blacklistedApps"`
 	// Theme controls the popup appearance: "native", "dark" or "light".
 	Theme string `json:"theme"`
+	// Autostart controls whether jify launches automatically at login. It
+	// defaults to true and is reconciled with the OS on every run.
+	Autostart bool `json:"autostart"`
 	// Hotkey is reserved for a future manual-open shortcut.
 	Hotkey Hotkey `json:"hotkey"`
 }
@@ -37,6 +40,7 @@ func Default() *Config {
 		MaxSuggestions:  10,
 		BlacklistedApps: []string{},
 		Theme:           "native",
+		Autostart:       true,
 		Hotkey:          Hotkey{Modifier: "ctrl", Key: "space"},
 	}
 }

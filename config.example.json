@@ -3,6 +3,7 @@
   "maxSuggestions": 10,
   "blacklistedApps": ["com.apple.Terminal", "Password"],
   "theme": "native",
+  "autostart": true,
   "hotkey": {
     "modifier": "ctrl",
     "key": "space"

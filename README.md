@@ -51,10 +51,29 @@ CGO_ENABLED=1 go build -o jify .
 ## Usage
 
 ```sh
-./jify            # run jify (type ":name" anywhere)
+./jify            # run jify in the background (type ":name" anywhere)
+./jify enable     # start jify automatically at login
+./jify disable    # stop starting jify at login
+./jify status     # show whether autostart is enabled
 ./jify config     # print the config file path
 ./jify help       # show help
 ```
+
+### Running in the background & at login
+
+jify is designed to run as a background agent (no dock icon on macOS, no window
+until the popup appears). It registers itself to launch at login automatically
+on first run — controlled by the `autostart` config field, which is reconciled
+with the OS every time jify starts. Use `jify disable` to turn it off.
+
+Login mechanism per OS:
+
+- **macOS** — a LaunchAgent at `~/Library/LaunchAgents/com.floatpane.jify.plist`.
+- **Windows** — an `HKCU\…\CurrentVersion\Run` registry value.
+- **Linux** — `~/.config/autostart/jify.desktop`.
+
+> **Windows:** build with the GUI subsystem so no console window appears:
+> `GOOS=windows CGO_ENABLED=0 go build -ldflags="-H windowsgui" -o jify.exe .`
 
 On first launch macOS will ask for **Accessibility** permission
 (System Settings → Privacy & Security → Accessibility). This is required for the
@@ -82,6 +101,7 @@ See [`config.example.json`](config.example.json):
 | `maxSuggestions`  | Maximum emojis shown in the popup.                                 |
 | `blacklistedApps` | App bundle ids (`com.apple.Terminal`) or names where jify is off.  |
 | `theme`           | `native`, `dark` or `light`.                                       |
+| `autostart`       | Launch jify at login (default `true`).                             |
 
 ## Platform support
 

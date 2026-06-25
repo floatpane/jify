@@ -1,6 +1,7 @@
 //go:build darwin
 
 #import <Cocoa/Cocoa.h>
+#import <ApplicationServices/ApplicationServices.h>
 #include <ctype.h>
 #include "_cgo_export.h"
 #include "darwin.h"
@@ -91,23 +92,89 @@ static void ensurePanel(void) {
     gPanel.contentView = gBackground;
 }
 
-// repositionPanel places the popup just below the mouse cursor, clamped to the
-// screen containing the cursor.
+// caretRectCocoa returns the screen rectangle of the text insertion point in
+// Cocoa coordinates (origin bottom-left). Returns NO if the focused element does
+// not expose caret bounds (e.g. some Electron apps), in which case the caller
+// falls back to the mouse location.
+static BOOL caretRectCocoa(NSRect *out) {
+    AXUIElementRef sys = AXUIElementCreateSystemWide();
+    if (!sys) return NO;
+
+    AXUIElementRef focused = NULL;
+    AXError e = AXUIElementCopyAttributeValue(
+        sys, kAXFocusedUIElementAttribute, (CFTypeRef *)&focused);
+    CFRelease(sys);
+    if (e != kAXErrorSuccess || !focused) return NO;
+
+    CFTypeRef rangeVal = NULL;
+    e = AXUIElementCopyAttributeValue(
+        focused, kAXSelectedTextRangeAttribute, &rangeVal);
+    if (e != kAXErrorSuccess || !rangeVal) {
+        CFRelease(focused);
+        return NO;
+    }
+
+    CFTypeRef boundsVal = NULL;
+    e = AXUIElementCopyParameterizedAttributeValue(
+        focused, kAXBoundsForRangeParameterizedAttribute, rangeVal, &boundsVal);
+    CFRelease(rangeVal);
+    CFRelease(focused);
+    if (e != kAXErrorSuccess || !boundsVal) return NO;
+
+    CGRect r = CGRectZero;
+    BOOL ok = AXValueGetValue((AXValueRef)boundsVal, kAXValueTypeCGRect, &r);
+    CFRelease(boundsVal);
+    if (!ok) return NO;
+
+    // A zero-width caret is normal; a fully-zero rect means "no info".
+    if (r.origin.x == 0 && r.origin.y == 0 && r.size.height == 0) return NO;
+
+    // AX rects use a top-left origin on the primary screen; flip to Cocoa's
+    // bottom-left origin.
+    CGFloat primaryTop = NSMaxY([[NSScreen screens] firstObject].frame);
+    out->origin.x = r.origin.x;
+    out->origin.y = primaryTop - (r.origin.y + r.size.height); // caret bottom
+    out->size.width = r.size.width;
+    out->size.height = r.size.height;
+    return YES;
+}
+
+// repositionPanel anchors the popup to the text caret: just below the current
+// line, or directly above it when there isn't enough room below. Falls back to
+// the mouse cursor when caret bounds aren't available.
 static void repositionPanel(CGFloat height) {
-    NSPoint mouse = [NSEvent mouseLocation];
+    const CGFloat gap = 6.0;
+
+    NSRect caret;
+    NSPoint anchor;
+    if (caretRectCocoa(&caret)) {
+        anchor = NSMakePoint(NSMidX(caret), caret.origin.y);
+    } else {
+        NSPoint m = [NSEvent mouseLocation];
+        caret = NSMakeRect(m.x, m.y - 8, 0, 16); // pretend a one-line caret
+        anchor = m;
+    }
 
     NSScreen *screen = [NSScreen mainScreen];
     for (NSScreen *s in [NSScreen screens]) {
-        if (NSPointInRect(mouse, s.frame)) { screen = s; break; }
+        if (NSPointInRect(anchor, s.frame)) { screen = s; break; }
     }
     NSRect vis = screen.visibleFrame;
 
-    CGFloat x = mouse.x;
-    CGFloat y = mouse.y - height - 22.0; // drop below the cursor
+    CGFloat caretBottom = caret.origin.y;
+    CGFloat caretTop = caret.origin.y + caret.size.height;
+
+    CGFloat x = caret.origin.x;
+    CGFloat y = caretBottom - gap - height; // below the line
+
+    if (y < NSMinY(vis)) {
+        // Not enough room below: sit directly above the line instead.
+        y = caretTop + gap;
+        if (y + height > NSMaxY(vis)) y = NSMaxY(vis) - height;
+    }
 
     if (x + kPanelWidth > NSMaxX(vis)) x = NSMaxX(vis) - kPanelWidth - 4;
     if (x < NSMinX(vis)) x = NSMinX(vis) + 4;
-    if (y < NSMinY(vis)) y = mouse.y + 22.0; // not enough room below -> show above
 
     [gPanel setFrame:NSMakeRect(x, y, kPanelWidth, height) display:YES];
 }
