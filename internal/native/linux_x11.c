@@ -1,4 +1,5 @@
-//go:build linux
+// X11 backend for jify on Linux (GTK3 + XRecord/XTest).
+// This file is compiled when CGO_ENABLED=1 and linked into the Linux binary.
 
 #include <gtk/gtk.h>
 #include <X11/Xlib.h>
@@ -31,7 +32,9 @@ static int gShift = 0;
 static char gQuery[256];
 static int gQueryLen = 0;
 static KeySym gTrigger = ':';
-static GdkPixbuf *gIcon = NULL;
+// gIcon is non-static so the Wayland backend (wayland.c) shares the pixbuf that
+// jifySetIcon decodes.
+GdkPixbuf *gIcon = NULL;
 
 // jifySetIcon decodes the PNG bytes into a pixbuf used as the window icon. The
 // pixbuf is applied once GTK is initialised (see jifyRun / build_ui).
@@ -443,7 +446,7 @@ static int setup_record(void) {
 // Entry point
 // ---------------------------------------------------------------------------
 
-void jifyRun(void) {
+void jifyRunX11(void) {
     gTrigger = (KeySym)jifyTriggerRune();
 
     gtk_init(NULL, NULL);
@@ -475,6 +478,6 @@ void jifyRun(void) {
         return;
     }
 
-    fprintf(stderr, "jify: running. Type \":name:\" to insert an emoji.\n");
+    fprintf(stderr, "jify: running (X11 backend). Type \":name:\" to insert an emoji.\n");
     gtk_main();
 }

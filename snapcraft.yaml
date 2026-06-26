@@ -6,9 +6,11 @@ description: |
   jify pops up native emoji suggestions whenever you type a shortcode
   (e.g. ":smile:") in any application, and inserts the emoji you pick.
 
-  It uses a GTK 3 popup and X11 (XRecord/XTest) for global key capture and text
-  insertion. Because it observes and injects keystrokes system-wide, the snap
-  uses classic confinement.
+  On X11 sessions it uses GTK 3 + XRecord/XTest for global key capture and text
+  insertion. On Wayland sessions (Hyprland, GNOME, KDE, etc.) it reads keyboard
+  events directly from /dev/input/event* and injects text via /dev/uinput.
+  Because it observes and injects keystrokes system-wide, the snap uses classic
+  confinement.
 
 # Global keyboard capture and text injection require unconfined (classic)
 # access; strict confinement cannot grant system-wide input interception.
@@ -39,6 +41,8 @@ parts:
       - libgtk-3-dev
       - libx11-dev
       - libxtst-dev
+      - libevdev-dev
+      - libxkbcommon-dev
     build-environment:
       - CGO_ENABLED: "1"
       - GOBIN: ""

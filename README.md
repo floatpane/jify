@@ -39,6 +39,12 @@ suggestions — press <kbd>Enter</kbd> to replace the shortcode with the emoji.
 - **Linux (X11)** — X11's `XRecord` can observe but not swallow keys, so
   selection uses the **closing-trigger** style: type `:smile:` (trigger, name,
   trigger) to insert the top suggestion. The popup updates live as you type.
+- **Linux (Wayland/Hyprland)** — same **closing-trigger** style as X11: type
+  `:smile:` to insert the top suggestion (or click a row). Keys are read
+  passively and never grabbed, so nothing gets stuck. The popup is a layer-shell
+  overlay anchored near the top of the screen — Wayland does not expose another
+  app's text caret, so it can't follow the cursor, and arrow/Enter selection is
+  not possible without running as a full input method.
 - **Any platform** — you can also **click** a suggestion in the popup to insert
   it (rows highlight on hover).
 
@@ -71,8 +77,11 @@ CGO_ENABLED=1 go build -o jify .
 # Windows (pure Go, no cgo)
 GOOS=windows CGO_ENABLED=0 go build -o jify.exe .
 
-# Linux (needs gtk+-3.0, libx11 and libxtst dev packages, e.g. on Debian:
-#   sudo apt install libgtk-3-dev libx11-dev libxtst-dev)
+# Linux (needs gtk+-3.0, libx11, libxtst, libevdev, libxkbcommon and
+#   gtk-layer-shell dev packages; e.g. on Debian/Ubuntu:
+#   sudo apt install libgtk-3-dev libx11-dev libxtst-dev libevdev-dev \
+#                    libxkbcommon-dev libgtk-layer-shell-dev)
+# Wayland sessions also need `wtype` at runtime for emoji insertion.
 CGO_ENABLED=1 go build -o jify .
 ```
 
@@ -144,7 +153,8 @@ See [`config.example.json`](config.example.json):
 | -------- | ------------------------------------ | -------------------------- | ---------------- |
 | macOS    | `darwin.m` (cgo / Objective-C)       | `CGEventTap` / `CGEvent`   | NSGlassEffectView |
 | Windows  | `windows.go` (pure Go, Win32)        | `WH_KEYBOARD_LL` / SendInput | acrylic layered window |
-| Linux    | `linux.c` (cgo / GTK3 + X11)         | `XRecord` / `XTest`        | GTK CSS popup    |
+| Linux X11| `linux_x11.c` (cgo / GTK3 + X11)     | `XRecord` / `XTest`        | GTK CSS popup    |
+| Linux Wayland | `wayland.c` (cgo / GTK3 + libevdev + xkbcommon + gtk-layer-shell) | `/dev/input/event*` / `wtype` | layer-shell overlay |
 
 The Go core (`pkg/config`, `pkg/emoji`) is platform-independent. The cgo
 backends (macOS, Linux) call the shared exported callbacks in `bridge.go`
@@ -154,7 +164,25 @@ pure Go and calls the core directly.
 ### Notes & permissions
 
 - **macOS** needs **Accessibility** permission for the event tap.
-- **Linux** requires an **X11** session (works under XWayland for most apps) with
+- **Linux X11** requires an **X11** session (works under XWayland for most apps) with
   the `RECORD` and `XTEST` extensions, which are standard.
+- **Linux Wayland** (Hyprland, GNOME, KDE, etc.) reads keyboard events globally
+  from `/dev/input/event*` via `libevdev` (translating keycodes with
+  `xkbcommon`, so your layout and Shift state are honoured) and injects text
+  with [`wtype`](https://github.com/atx/wtype), which uses the virtual-keyboard
+  protocol to type arbitrary Unicode into any app. Two requirements:
+  1. Your user must be in the `input` group to read keyboard devices (most
+     distributions add users to this group automatically). Check with `id` — if
+     you don't see `input`, run:
+     ```sh
+     sudo usermod -aG input $USER
+     # Log out and back in for the group change to take effect
+     ```
+  2. Install `wtype` (`sudo pacman -S wtype`, `sudo apt install wtype`, …). The
+     emoji popup still appears without it, but insertion is a no-op.
+
+  The popup is rendered through XWayland (so it can be positioned at the cursor;
+  native Wayland forbids client-side window placement) — make sure XWayland is
+  available, which it is by default on Hyprland.
 - **Windows** needs no special permission; if jify is used in an elevated
   (admin) window, run jify elevated too so the hook can see those keystrokes.
